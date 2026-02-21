@@ -1,0 +1,28 @@
+syntax = "proto3";
+package agent;
+
+//Java 端的配置 (让 Java 知道生成的类放在哪)
+option java_package = "com.xxx.agent.proto";
+option java_outer_classname = "AgentProto";
+
+// 定义服务
+service AgentService {
+  // 核心：返回值使用了 stream 关键字
+  // 表示：Java 发一个请求，Python 会源源不断地吐出数据流
+  rpc chatStream (ChatRequest) returns (stream ChatResponse);
+}
+
+// 请求体 (Java -> Python)
+message ChatRequest {
+  string user_id = 1;       // 用户ID (用于记忆检索)
+  string system_prompt = 2; // 当前人设 (如: "你是猫娘...")
+  string user_message = 3;  // 用户说的话
+}
+
+// 响应体 (Python -> Java)
+// 这是流中的每一个"数据包"，每生成一个字就会发一个这个包
+message ChatResponse {
+  string delta = 1;    // 增量文本 (例如只包含一个字 "喜")
+  string emotion = 2;  // 当前情感 (例如 "happy", "shy") - 供前端 Live2D 变脸
+  bool is_end = 3;     // 标记是否结束
+}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.vr_gfriend.user.mapper.UserAIProfileMapper">
+    <select id="selectByUserId" resultType="com.example.vr_gfriend.user.entity.UserAIProfile">
+        SELECT
+            id, user_id,
+            ai_name,
+            personality_tags,
+            interests,
+            system_prompt,
+            ai_affinity_score,
+            active_level,
+            avatar_url,
+            voice_id
+        FROM user_ai_profile
+        WHERE user_id = #{userId}
+    </select>
+</mapper>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.vr_gfriend.Scheduler.mapper.UserAlarmMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.vr_gfriend.Scheduler.entity.UserAlarmProfileEntity">
+        <id column="id" property="id" />
+        <result column="user_id" property="userId" />
+        <result column="city" property="city" />
+        <result column="cron_expression" property="cronExpression" />
+        <result column="schedule_file_path" property="scheduleFilePath" />
+        <result column="enabled" property="enabled" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, user_id, city, cron_expression, schedule_file_path, enabled, created_at, updated_at
+    </sql>
+
+</mapper>
