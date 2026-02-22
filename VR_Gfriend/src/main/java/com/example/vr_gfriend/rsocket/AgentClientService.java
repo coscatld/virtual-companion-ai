@@ -73,7 +73,7 @@ public class AgentClientService {
         }
     }
 
-    // 流式对话接口 (主入口)
+    // 流式对话文字接口 (主入口)
     public Flux<AgentProto.ChatResponse> streamChat(String content) {
         String userId = UserContext.getUserId();
         

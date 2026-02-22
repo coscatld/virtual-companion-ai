@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from virtual_lover_agent.protos import agent_proto_pb2 as agent__proto__pb2
+import agent_proto_pb2 as agent__proto__pb2
 
 GRPC_GENERATED_VERSION = '1.78.1'
 GRPC_VERSION = grpc.__version__
@@ -63,17 +63,10 @@ def add_AgentServiceServicer_to_server(servicer, server):
                     response_serializer=agent__proto__pb2.ChatResponse.SerializeToString,
             ),
     }
-
-    # grpc.method_handlers_generic_handler 在 grpcio 1.78.1 (venv) 中可用
-    # 如果使用系统 Python，请在 PyCharm 中将 Interpreter 切换到 venv:
-    # e:\GA\GAagent\.venv\Scripts\python.exe
     generic_handler = grpc.method_handlers_generic_handler(
             'agent.AgentService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
     server.add_registered_method_handlers('agent.AgentService', rpc_method_handlers)
-
-
-
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -98,6 +91,79 @@ class AgentService(object):
             '/agent.AgentService/chatStream',
             agent__proto__pb2.ChatRequest.SerializeToString,
             agent__proto__pb2.ChatResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class AudioServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.StreamAudioChat = channel.stream_stream(
+                '/agent.AudioService/StreamAudioChat',
+                request_serializer=agent__proto__pb2.AudioRequest.SerializeToString,
+                response_deserializer=agent__proto__pb2.AudioResponse.FromString,
+                _registered_method=True)
+
+
+class AudioServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def StreamAudioChat(self, request_iterator, context):
+        """双向流式 RPC：前端持续发声音，AI 持续回传声音
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_AudioServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'StreamAudioChat': grpc.stream_stream_rpc_method_handler(
+                    servicer.StreamAudioChat,
+                    request_deserializer=agent__proto__pb2.AudioRequest.FromString,
+                    response_serializer=agent__proto__pb2.AudioResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'agent.AudioService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('agent.AudioService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class AudioService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def StreamAudioChat(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(
+            request_iterator,
+            target,
+            '/agent.AudioService/StreamAudioChat',
+            agent__proto__pb2.AudioRequest.SerializeToString,
+            agent__proto__pb2.AudioResponse.FromString,
             options,
             channel_credentials,
             insecure,

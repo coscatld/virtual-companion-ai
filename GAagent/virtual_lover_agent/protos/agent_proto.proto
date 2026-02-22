@@ -26,3 +26,20 @@ message ChatResponse {
   string emotion = 2;  // 当前情感 (例如 "happy", "shy") - 供前端 Live2D 变脸
   bool is_end = 3;     // 标记是否结束
 }
+
+service AudioService {
+  // 双向流式 RPC：前端持续发声音，AI 持续回传声音
+  rpc StreamAudioChat (stream AudioRequest) returns (stream AudioResponse);
+}
+
+message AudioRequest {
+  bytes audio_chunk = 1; // 纯二进制音频流
+  string session_id = 2; // 用于隔离不同用户的并发记忆
+  string user_id = 3;    // 用户ID (用于记忆检索与保存)
+  string system_prompt = 4; // 人设Prompt，由Java从DB/Redis获取后传入
+}
+
+message AudioResponse {
+  bytes ai_audio_chunk = 1; // AI 合成好的语音流
+  string ai_text = 2;       // 附带文本，可用于前端显示字幕
+}

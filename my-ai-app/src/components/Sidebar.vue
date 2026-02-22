@@ -7,7 +7,8 @@ import {
   FolderOpenIcon,
   CogIcon,
   ChevronDoubleLeftIcon,
-  ChevronDoubleRightIcon
+  ChevronDoubleRightIcon,
+  MicrophoneIcon
 } from '@heroicons/vue/24/outline'
 
 const isCollapsed = ref(false)
@@ -18,6 +19,7 @@ const menus = [
   { name: 'Dashboard', path: '/dashboard', icon: HomeIcon },
   { name: 'AI Agents', path: '/agents', icon: CpuChipIcon },
   { name: 'Knowledge Base', path: '/knowledge', icon: FolderOpenIcon },
+  { name: 'Voice Companion', path: '/companion', icon: MicrophoneIcon },
   { name: 'Settings', path: '/settings', icon: CogIcon }
 ]
 

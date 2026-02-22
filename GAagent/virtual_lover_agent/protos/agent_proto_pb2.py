@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x61gent_proto.proto\x12\x05\x61gent\"K\n\x0b\x43hatRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x15\n\rsystem_prompt\x18\x02 \x01(\t\x12\x14\n\x0cuser_message\x18\x03 \x01(\t\">\n\x0c\x43hatResponse\x12\r\n\x05\x64\x65lta\x18\x01 \x01(\t\x12\x0f\n\x07\x65motion\x18\x02 \x01(\t\x12\x0e\n\x06is_end\x18\x03 \x01(\x08\x32G\n\x0c\x41gentService\x12\x37\n\nchatStream\x12\x12.agent.ChatRequest\x1a\x13.agent.ChatResponse0\x01\x42!\n\x13\x63om.xxx.agent.protoB\nAgentProtob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x61gent_proto.proto\x12\x05\x61gent\"K\n\x0b\x43hatRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x15\n\rsystem_prompt\x18\x02 \x01(\t\x12\x14\n\x0cuser_message\x18\x03 \x01(\t\">\n\x0c\x43hatResponse\x12\r\n\x05\x64\x65lta\x18\x01 \x01(\t\x12\x0f\n\x07\x65motion\x18\x02 \x01(\t\x12\x0e\n\x06is_end\x18\x03 \x01(\x08\"_\n\x0c\x41udioRequest\x12\x13\n\x0b\x61udio_chunk\x18\x01 \x01(\x0c\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12\x0f\n\x07user_id\x18\x03 \x01(\t\x12\x15\n\rsystem_prompt\x18\x04 \x01(\t\"8\n\rAudioResponse\x12\x16\n\x0e\x61i_audio_chunk\x18\x01 \x01(\x0c\x12\x0f\n\x07\x61i_text\x18\x02 \x01(\t2G\n\x0c\x41gentService\x12\x37\n\nchatStream\x12\x12.agent.ChatRequest\x1a\x13.agent.ChatResponse0\x01\x32P\n\x0c\x41udioService\x12@\n\x0fStreamAudioChat\x12\x13.agent.AudioRequest\x1a\x14.agent.AudioResponse(\x01\x30\x01\x42!\n\x13\x63om.xxx.agent.protoB\nAgentProtob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,6 +36,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CHATREQUEST']._serialized_end=103
   _globals['_CHATRESPONSE']._serialized_start=105
   _globals['_CHATRESPONSE']._serialized_end=167
-  _globals['_AGENTSERVICE']._serialized_start=169
-  _globals['_AGENTSERVICE']._serialized_end=240
+  _globals['_AUDIOREQUEST']._serialized_start=169
+  _globals['_AUDIOREQUEST']._serialized_end=264
+  _globals['_AUDIORESPONSE']._serialized_start=266
+  _globals['_AUDIORESPONSE']._serialized_end=322
+  _globals['_AGENTSERVICE']._serialized_start=324
+  _globals['_AGENTSERVICE']._serialized_end=395
+  _globals['_AUDIOSERVICE']._serialized_start=397
+  _globals['_AUDIOSERVICE']._serialized_end=477
 # @@protoc_insertion_point(module_scope)

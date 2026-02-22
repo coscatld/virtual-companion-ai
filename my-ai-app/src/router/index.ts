@@ -41,6 +41,12 @@ const router = createRouter({
                     name: 'Briefing',
                     component: () => import('../views/BriefingSetupView.vue'),
                     meta: { title: 'Daily Briefing' }
+                },
+                {
+                    path: 'companion',
+                    name: 'Companion',
+                    component: () => import('../views/AvatarCompanionView.vue'),
+                    meta: { title: '语音陪伴 (适老版)' }
                 }
             ]
         }
