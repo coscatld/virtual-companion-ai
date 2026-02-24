@@ -83,122 +83,175 @@ class AgentService(agent_proto_pb2_grpc.AgentServiceServicer):
 
 
 class AudioService(agent_proto_pb2_grpc.AudioServiceServicer):
-    
-    async def StreamAudioChat(self, request_iterator, context):
-        logger.info("[gRPC Audio] Received new audio stream request")
-        
+
+    async def StreamAudioChat(self, request_iterator, context) -> AsyncIterator[agent_proto_pb2.AudioResponse]:
+        logger.info("[gRPC Audio] 🎧 New audio stream connected from Java Gateway")
+        #初始化变量
         audio_buffer = bytearray()
         user_id = "Anonymous"
         session_id = ""
         system_prompt = "You are a helpful AI assistant."
-        
-        # 1. 接收来自 Java 前端的二进制音频片段
+
         try:
             async for request in request_iterator:
+                # 1. 接收基础信息
+                if request.user_id: user_id = request.user_id
+                if request.session_id: session_id = request.session_id
+                if request.system_prompt: system_prompt = request.system_prompt
+
+                # 2. 累加音频数据
                 if request.audio_chunk:
                     audio_buffer.extend(request.audio_chunk)
-                if request.user_id:
-                    user_id = request.user_id
-                if request.session_id:
-                    session_id = request.session_id
-                if request.system_prompt:
-                    system_prompt = request.system_prompt
+                else:
+                    #收到0字节包,代表用户这段话说完了
+                    if not audio_buffer:
+                        continue
+
+                    logger.info(f"[{user_id}]  Received EOF (0 byte). Starting Inference Pipeline...")
+
+                    # --- 阶段 A：无落盘 + 防阻塞的 ASR ---
+                    recognized_text = await self._async_asr(audio_buffer)
+                    logger.info(f"[{user_id}] 🗣️ User said: {recognized_text}")
+
+                    if not recognized_text.strip() or recognized_text == "...":
+                        audio_buffer.clear()
+                        continue  # 没听清，忽略本次，继续等下一句
+
+                    # --- 阶段 B：极速获取记忆 ---
+                    messages = await self._build_prompt_with_history(user_id, system_prompt, recognized_text)
+
+                    # --- 阶段 C：大模型流式推理 + TTS 实时合成 (边想边读) ---
+                    full_reply = ""
+                    # 使用 async for 消费这个双轨生成器
+                    async for audio_response, text_chunk in self._stream_llm_and_tts(messages):
+                        if text_chunk:
+                            # 1. 把零碎的文字拼起来，留着最后存 Redis 用
+                            full_reply += text_chunk
+                        if audio_response:
+                            # 2. 如果这回合生成了音频，立刻 yield 给 Java！
+                            yield audio_response
+
+                    # --- 阶段 D：后台静默存入记忆 (不阻塞返回) ---
+                    asyncio.create_task(self._save_history_async(user_id, recognized_text, full_reply))
+
+                    # 准备就绪，清空 buffer，倾听用户的下一句话
+                    audio_buffer.clear()
+                    logger.info(f"[{user_id}] ✅ Round complete. Listening for next sentence...")
+
         except Exception as e:
-            logger.error(f"[gRPC Audio] Read stream error: {e}")
-            return
-            
-        if not audio_buffer:
-            logger.warning("[gRPC Audio] Empty audio buffer received.")
-            return
+            logger.error(f"[gRPC Audio] Stream interrupted: {e}")
 
-        logger.info(f"[gRPC Audio] Finished receiving {len(audio_buffer)} bytes from {user_id}. Running ASR...")
+    # ==================== 核心功能组件提取 ====================
 
-        # 2. 语音识别 (ASR)
-        recognized_text = ""
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
-                tmp_wav.write(audio_buffer)
-                tmp_name = tmp_wav.name
-                
-            recognizer = sr.Recognizer()
-            with sr.AudioFile(tmp_name) as source:
-                audio_data = recognizer.record(source)
-                recognized_text = recognizer.recognize_google(audio_data, language="zh-CN")
-            
-            os.remove(tmp_name)
-            logger.info(f"[gRPC Audio] User said: {recognized_text}")
-        except sr.UnknownValueError:
-            logger.warning("[gRPC Audio] ASR could not understand audio")
-            recognized_text = "..." 
-        except Exception as e:
-            logger.error(f"[gRPC Audio] ASR error: {e}")
-            recognized_text = "你好" 
+    async def _async_asr(self, audio_bytes: bytearray) -> str:
+        """异步、无磁盘 IO 的语音识别"""
 
-        # 3. 获取 Redis 历史记忆 (短期记忆)
+        def run_asr():
+            try:
+                # 核心优化 1：使用 BytesIO 替代 tempfile，纯内存操作
+                wav_io = io.BytesIO(audio_bytes)
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(wav_io) as source:
+                    audio_data = recognizer.record(source)
+                    return recognizer.recognize_google(audio_data, language="zh-CN")
+            except sr.UnknownValueError:
+                return "..."
+            except Exception as e:
+                logger.error(f"ASR error: {e}")
+                return "你好"
+
+        # 核心优化 2：将同步的第三方库推入线程池，绝不卡死主事件循环
+        return await asyncio.to_thread(run_asr)
+
+    async def _build_prompt_with_history(self, user_id: str, system_prompt: str, user_text: str) -> list:
+        """获取 Redis 短期记忆并组装消息"""
         REDIS_HOST = os.getenv("redis_host", "localhost")
         REDIS_PORT = int(os.getenv("redis_port", "6379"))
-        HISTORY_CACHE_KEY = f"vr:history:{user_id}"
-        
+        HISTORY_KEY = f"vr:history:{user_id}"
+
         redis_client = aioredis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-        recent_history = []
         try:
-            recent_history = await redis_client.lrange(HISTORY_CACHE_KEY, 0, 9)
+            recent_history = await redis_client.lrange(HISTORY_KEY, 0, 9)
             recent_history.reverse()
-        except Exception as e:
-            logger.error(f"[gRPC Audio] Redis error: {e}")
-            
-        user_message_with_history = ""
-        if recent_history:
-            user_message_with_history += "<Chat_History>\n" + "\n".join(recent_history) + "\n</Chat_History>\n\n"
-        user_message_with_history += f"Current User Query: {recognized_text}"
-        
-        # 4. LLM 推理
-        messages = [
-            ("system", system_prompt),
-            ("user", user_message_with_history)
-        ]
-        
-        ai_reply_text = ""
+        except Exception:
+            recent_history = []
+        finally:
+            await redis_client.aclose()
+
+        history_str = "<Chat_History>\n" + "\n".join(recent_history) + "\n</Chat_History>\n\n" if recent_history else ""
+        user_message = f"{history_str}Current User Query: {user_text}"
+
+        return [("system", system_prompt), ("user", user_message)]
+
+    async def _stream_llm_and_tts(self, messages: list):
+        """核心优化 3：大模型流式输出 -> 标点符号截断 -> 实时分块 TTS 合成"""
+        current_sentence = ""
+        punctuation_marks = {'。', '！', '？', '，', '；', '\n', '.', '!', '?', ',', ';'}
+
         try:
-            response = await agent_graph.ainvoke({"messages": messages})
-            ai_reply_text = response["messages"][-1].content
-            logger.info(f"[gRPC Audio] AI Response: {ai_reply_text}")
+            # 使用 astream_events 捕获 LLM 流式输出
+            async for event in agent_graph.astream_events({"messages": messages}, version="v2"):
+                if event["event"] == "on_chat_model_stream":
+                    chunk = event["data"]["chunk"].content
+                    if not chunk: continue
+
+                    current_sentence += chunk
+
+                    # 🚀 亮点：只要大模型吐出文字，立刻抛给外层去拼装全量文本，音频位给 None
+                    yield (None, chunk)
+
+                    # 探测到句子边界（标点符号）
+                    if any(p in chunk for p in punctuation_marks):
+                        sentence_to_speak = current_sentence.strip()
+                        current_sentence = ""  # 立即清空，开始收集下一句
+
+                        if sentence_to_speak:
+                            # 开启 TTS 并在内部通过 yield 逐块传回
+                            async for audio_chunk in self._generate_tts_stream(sentence_to_speak):
+                                # 🚀 抛出生成的音频块，文本位给空字符串
+                                yield (audio_chunk, "")
+
+            # 处理结尾没有标点符号的剩余文字
+            if current_sentence.strip():
+                async for audio_chunk in self._generate_tts_stream(current_sentence.strip()):
+                    yield (audio_chunk, "")
+
         except Exception as e:
-            logger.error(f"[gRPC Audio] LLM error: {e}")
-            ai_reply_text = "对不起，我遇到了一点问题。"
+            logger.error(f"LLM/TTS Pipeline Error: {e}")
 
-        # 异步存入本轮回复到 Redis 短期记忆
-        if recognized_text.strip() and recognized_text != "...":
-            try:
-                await redis_client.rpush(HISTORY_CACHE_KEY, f"User: {recognized_text}", f"AI: {ai_reply_text}")
-                await redis_client.ltrim(HISTORY_CACHE_KEY, -50, -1)
-                await redis_client.expire(HISTORY_CACHE_KEY, 3600)
-            except:
-                pass
-        
-        await redis_client.aclose()
+    async def _generate_tts_stream(self, text: str) -> AsyncIterator[agent_proto_pb2.AudioResponse]:
+        """调用 Edge TTS 将一小段文本转为语音流"""
+        communicator = edge_tts.Communicate(text, "zh-CN-XiaoxiaoNeural")
+        is_first_chunk = True
 
-        # 5. 语音合成 (TTS)
-        voice = "zh-CN-XiaoxiaoNeural"
-        communicator = edge_tts.Communicate(ai_reply_text, voice)
-        
-        tts_buffer = bytearray()
         try:
             async for chunk in communicator.stream():
                 if chunk["type"] == "audio":
-                    tts_buffer.extend(chunk["data"])
+                    # 只在第一个音频块附带文本，用于前端字幕展示
+                    yield agent_proto_pb2.AudioResponse(
+                        ai_audio_chunk=chunk["data"],
+                        ai_text=text if is_first_chunk else ""
+                    )
+                    is_first_chunk = False
         except Exception as e:
-            logger.error(f"[gRPC Audio] TTS error: {e}")
-        
-        # 拆分发送回 Java，防止包太大
-        chunk_size = 32000
-        for i in range(0, len(tts_buffer), chunk_size):
-            yield agent_proto_pb2.AudioResponse(
-                ai_audio_chunk=bytes(tts_buffer[i:i+chunk_size]),
-                ai_text=ai_reply_text if i == 0 else "" 
-            )
-            
-        logger.info("[gRPC Audio] Response Sent.")
+            logger.error(f"TTS Synthesis error: {e}")
+
+    async def _save_history_async(self, user_id: str, user_text: str, ai_text: str):
+        """核心优化 4：异步后台落库，不阻塞下一轮对话"""
+        if not user_text.strip() or not ai_text.strip(): return
+
+        REDIS_HOST = os.getenv("redis_host", "localhost")
+        REDIS_PORT = int(os.getenv("redis_port", "6379"))
+        HISTORY_KEY = f"vr:history:{user_id}"
+
+        try:
+            redis_client = aioredis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+            await redis_client.rpush(HISTORY_KEY, f"User: {user_text}", f"AI: {ai_text}")
+            await redis_client.ltrim(HISTORY_KEY, -50, -1)
+            await redis_client.expire(HISTORY_KEY, 3600)
+            await redis_client.aclose()
+        except Exception as e:
+            logger.error(f"Failed to save history: {e}")
 
 async def serve():
     """
