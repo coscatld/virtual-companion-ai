@@ -12,6 +12,7 @@ import tempfile
 import os
 import redis.asyncio as aioredis
 
+from virtual_lover_agent.app.memory_summarizer import memory_pruning_worker
 from virtual_lover_agent.protos import agent_proto_pb2
 from virtual_lover_agent.protos import agent_proto_pb2_grpc
 from virtual_lover_agent.agent.graph.gragh01 import agent_graph
@@ -270,6 +271,10 @@ async def serve():
     logger.info(f"🚀 Python AI gRPC Server starting on {listen_addr}")
     await server.start()
     logger.info(f"✅ Python AI gRPC Server is ready to accept connections on port 7000")
+
+    #记忆收缩服务作为一个常驻的后台协程任务启动
+    asyncio.create_task(memory_pruning_worker())
+    logger.info("✅ Memory pruning background task initiated")
 
     # 阻塞直到停止信号
     await server.wait_for_termination()

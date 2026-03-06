@@ -8,7 +8,8 @@ import {
   CogIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
-  MicrophoneIcon
+  MicrophoneIcon,
+  VideoCameraIcon
 } from '@heroicons/vue/24/outline'
 
 const isCollapsed = ref(false)
@@ -16,11 +17,12 @@ const router = useRouter()
 const route = useRoute()
 
 const menus = [
-  { name: 'Dashboard', path: '/dashboard', icon: HomeIcon },
-  { name: 'AI Agents', path: '/agents', icon: CpuChipIcon },
-  { name: 'Knowledge Base', path: '/knowledge', icon: FolderOpenIcon },
-  { name: 'Voice Companion', path: '/companion', icon: MicrophoneIcon },
-  { name: 'Settings', path: '/settings', icon: CogIcon }
+  { name: '控制台', path: '/dashboard', icon: HomeIcon },
+  { name: 'AI 代理', path: '/agents', icon: CpuChipIcon },
+  { name: '文字聊天室', path: '/chat', icon: FolderOpenIcon },
+  { name: '适老版语音', path: '/companion', icon: MicrophoneIcon },
+  { name: '3D数字人', path: '/digital-human', icon: VideoCameraIcon },
+  { name: '系统设置', path: '/settings', icon: CogIcon }
 ]
 
 const toggleSidebar = () => {
@@ -48,7 +50,7 @@ const navigateTo = (path: string) => {
         v-show="!isCollapsed" 
         class="ml-3 font-semibold text-gray-800 tracking-tight text-lg whitespace-nowrap overflow-hidden"
       >
-        AI Console
+        AI 虚拟伴侣
       </span>
     </div>
 

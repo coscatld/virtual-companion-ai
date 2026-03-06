@@ -7,37 +7,45 @@ export function useAudioStream() {
   const wsErrorMsg = ref('');
   const aiText = ref('');
   const userText = ref('');
-  const mouthOpenness = ref(0); // 0.0 to 1.0 用于驱动数字人嘴巴张合度
+  const mouthOpenness = ref(0);
 
   let ws: WebSocket | null = null;
   let mediaRecorder: MediaRecorder | null = null;
   let audioContext: AudioContext | null = null;
   let analyser: AnalyserNode | null = null;
   let animationFrameId: number;
+  let reconnectTimer: number | null = null;
 
   const connectWebSocket = () => {
-    if (ws && ws.readyState !== WebSocket.CLOSED) return;
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
     wsStatus.value = 'connecting';
     const token = localStorage.getItem('token') || '';
-    const wsUrl = `ws://localhost:8080/audio?token=${token}`;
-    
+    const wsUrl = `ws://${window.location.host}/audio?token=${token}`;
+
     ws = new WebSocket(wsUrl);
-    ws.binaryType = 'arraybuffer'; // 接收后端返回的纯二进制流
+    ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
       wsStatus.value = 'connected';
       wsErrorMsg.value = '';
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
     };
 
     ws.onmessage = async (event) => {
-      // 收到后端的音频二进制流或文本
       if (event.data instanceof ArrayBuffer) {
         await playAudioChunk(event.data);
       } else if (typeof event.data === 'string') {
-        const res = JSON.parse(event.data);
-        if (res.ai_text) {
-          aiText.value += res.ai_text;
+        try {
+          const res = JSON.parse(event.data);
+          if (res.ai_text) {
+            aiText.value += res.ai_text;
+          }
+        } catch (e) {
+          console.error("Failed to parse websocket string msg", e);
         }
       }
     };
@@ -45,13 +53,14 @@ export function useAudioStream() {
     ws.onclose = () => {
       wsStatus.value = 'disconnected';
       if (isRecording.value) stopRecording();
-      // 提示重连
-      setTimeout(connectWebSocket, 3000); 
+
+      wsErrorMsg.value = '与伴侣的连接断开了，正在尝试重连...';
+      reconnectTimer = window.setTimeout(connectWebSocket, 3000);
     };
 
     ws.onerror = (error) => {
       wsStatus.value = 'error';
-      wsErrorMsg.value = '网络开小差了，正在为您重连...';
+      wsErrorMsg.value = '网络似乎有点问题...';
       console.error('WebSocket Error:', error);
     };
   };
@@ -73,14 +82,14 @@ export function useAudioStream() {
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(analyser); // 连接到分析器以便计算音量
-      
+      source.connect(analyser);
+
       isPlaying.value = true;
       source.onended = () => {
         isPlaying.value = false;
-        mouthOpenness.value = 0; // 说话结束，闭嘴
+        mouthOpenness.value = 0;
       };
-      
+
       source.start();
       monitorAudioLevel();
     } catch (e) {
@@ -96,11 +105,13 @@ export function useAudioStream() {
 
     let sum = 0;
     for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
+      sum += dataArray[i]!;
     }
     const average = sum / dataArray.length;
-    // 归一化音量到 0.0 ~ 1.0 (根据实际音量反馈微调分母)
-    mouthOpenness.value = Math.min(1.0, average / 60);
+
+    // Normalize and add easing to prevent mouth jitter
+    const targetOpenness = Math.min(1.0, average / 60);
+    mouthOpenness.value = mouthOpenness.value + (targetOpenness - mouthOpenness.value) * 0.3;
 
     if (isPlaying.value) {
       animationFrameId = requestAnimationFrame(monitorAudioLevel);
@@ -112,28 +123,27 @@ export function useAudioStream() {
 
   const startRecording = async () => {
     if (wsStatus.value !== 'connected') {
-       alert("网络未连接，请稍等再试");
-       return;
+      alert("等一等，正在连接您的数字伴侣哦。");
+      return;
     }
-    
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' }); // Chrome 默认
-      
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-          // 向后端发送录音碎块
           ws.send(e.data);
         }
       };
 
-      mediaRecorder.start(500); // 时间切片，每 500ms 触发一次 ondataavailable
+      mediaRecorder.start(500);
       isRecording.value = true;
-      aiText.value = ''; // 准备接收新一轮
+      aiText.value = '';
       userText.value = '正在倾听您说话...';
     } catch (err) {
       console.error('麦克风权限被拒:', err);
-      alert('请允许麦克风访问权限才可以说话哦。');
+      alert('如果要和伴侣说话，请在浏览器地址栏左侧允许麦克风权限哦。');
     }
   };
 
@@ -141,17 +151,18 @@ export function useAudioStream() {
     if (mediaRecorder && isRecording.value) {
       mediaRecorder.stop();
       mediaRecorder.stream.getTracks().forEach(track => track.stop());
-      
-      // 发送 0 字节空包给后端，代表 VAD Endpoint，说话完毕
+
       if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(new Uint8Array(0));
+        // Push 0 byte ArrayBuffer to end VAD
+        ws.send(new Uint8Array(0));
       }
       isRecording.value = false;
-      userText.value = '您的声音已发送，等待伴侣回复...';
+      userText.value = '您的声音已发送，请听我说...';
     }
   };
 
   onUnmounted(() => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
     stopRecording();
     if (ws) ws.close();
     if (audioContext) audioContext.close();

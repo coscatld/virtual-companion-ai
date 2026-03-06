@@ -44,8 +44,7 @@ SUMMARY_PROMPT = PromptTemplate.from_template("""
 
 async def summarize_history(redis_client, user_id: str, history_list: list):
     """提取历史记录并生成总结"""
-    # 翻转顺序，因为 redis lrange 是从新到旧
-    history_list.reverse()
+
     dialogue_text = "\n".join(history_list)
     
     chain = SUMMARY_PROMPT | llm_summarizer
@@ -63,6 +62,8 @@ async def summarize_history(redis_client, user_id: str, history_list: list):
             "timestamp": datetime.now().isoformat()
         }
         await redis_client.lpush("vr:long_term_queue", json.dumps(memory_item))
+        return True
+    return False
 
 async def memory_pruning_worker():
     """后台死循环协程：监督 Redis 里的短记忆长度，实施修剪过滤"""
@@ -79,23 +80,23 @@ async def memory_pruning_worker():
                 user_id = key.split(":")[-1]
                 # 获取该用户的对话条数
                 length = await r.llen(key)
-                
+
                 # 如果积攒的短记忆大于等于 12 条 (6轮 QA)
                 if length >= 12:
                     logging.info(f"Triggering summarization for {user_id} (Length: {length})")
-                    
-                    # 拿出最旧的 6 条对话（3轮QA）进行归纳总结
-                    # RPOP 移出最右侧（最老的数据），弹出 6 次
-                    old_history = []
-                    for _ in range(6):
-                        old_msg = await r.rpop(key)
-                        if old_msg:
-                            old_history.append(old_msg)
-                            
+
+                    # 假设新的聊天记录是追加到队尾 (rpush)，那么最旧的6条在前面，索引是 0 到 5。
+                    # 或者如果是追加到队头 (lpush)，最旧的6条是在最后面，需要调参。
+                    # 一般记忆推荐 lrange(key, 0, 5) 或者 lrange(key, -6, -1) 来正确获取。
+                    old_history = await r.lrange(key, 0, 5)  # <--- 修改成这样（假设旧消息存第一位）
+
                     if old_history:
-                        # 丢给 vLLM 后台提炼，不阻塞主流程
-                        asyncio.create_task(summarize_history(r, user_id, old_history))
-                        
+                        # 交给vllm处理再删记录
+                        success = await summarize_history(r, user_id, old_history)
+                        if success:
+                            # 如果旧消息存头上，成功后则从第6条开始保留最新记录
+                            await r.ltrim(key, 6, -1)  # <--- 修改逻辑：保留索引6到末尾的最新日志
+
             # 巡检间隔 30 秒，避免 CPU 空转
             await asyncio.sleep(30)
             

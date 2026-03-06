@@ -28,25 +28,31 @@ const router = createRouter({
                     path: 'dashboard',
                     name: 'Dashboard',
                     component: () => import('../views/DashboardView.vue'),
-                    meta: { title: 'Templates' }
+                    meta: { title: '控制面板' }
                 },
                 {
                     path: 'chat',
                     name: 'Chat',
                     component: () => import('../views/ChatView.vue'),
-                    meta: { title: 'Chat Room' }
+                    meta: { title: '聊天室' }
                 },
                 {
                     path: 'briefing',
                     name: 'Briefing',
                     component: () => import('../views/BriefingSetupView.vue'),
-                    meta: { title: 'Daily Briefing' }
+                    meta: { title: '每日简报' }
                 },
                 {
                     path: 'companion',
                     name: 'Companion',
                     component: () => import('../views/AvatarCompanionView.vue'),
                     meta: { title: '语音陪伴 (适老版)' }
+                },
+                {
+                    path: 'digital-human',
+                    name: 'DigitalHuman',
+                    component: () => import('../views/DigitalHuman.vue'),
+                    meta: { title: '3D数字人 (V1.0)' }
                 }
             ]
         }
