@@ -15,7 +15,17 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(jwtInterceptor)
-                .addPathPatterns("/**") // 拦截所有
-                .excludePathPatterns("/admin/user/register", "/admin/user/login","/api/**"); // 放行注册登录
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        "/admin/user/register",
+                        "/admin/user/login",
+
+                        // Swagger 相关（必须完整）
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/swagger-resources/**",
+                        "/webjars/**"
+                );
     }
 }
