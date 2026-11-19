@@ -1,0 +1,4 @@
+-r requirements-core.txt
+grpcio>=1.78.1,<2
+protobuf>=6.31.1,<8
+redis>=6,<8

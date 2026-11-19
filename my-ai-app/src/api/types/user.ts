@@ -67,3 +67,15 @@ export interface CustomCreateDTO {
   interests?: string[]         // 兴趣列表，如 ["编程", "游戏"]
   description?: string         // 可选：用户手写的描述文字
 }
+
+export interface Account {
+  registerStage: 0 | 1 | 2
+  username: string | null
+  nickname: string | null
+}
+
+export interface Companion {
+  name: string
+  tags: string[]
+  interests: string
+}

@@ -1,0 +1,3 @@
+prune tests
+prune virtual_lover_agent/enterprise
+prune virtual_lover_agent/protos

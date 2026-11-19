@@ -1,6 +1,8 @@
 package com.example.vr_gfriend.user.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.Data;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -9,13 +11,14 @@ import java.time.LocalDateTime;
 @TableName("user")
 public class User {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String userId;
 
     private String email;
     private String phone;
     private String passwordHash;
-    private Integer registerType; //0手机，1邮箱
+    private Integer registerType; // 0 邮箱，1 手机
     private Integer registerStage;//0注册1完善资料2初始化AI
     private Integer status;//1正常
 

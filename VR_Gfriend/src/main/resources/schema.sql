@@ -1,0 +1,51 @@
+CREATE TABLE IF NOT EXISTS user (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL UNIQUE,
+    email VARCHAR(255) UNIQUE,
+    phone VARCHAR(32) UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    register_type INTEGER NOT NULL,
+    register_stage INTEGER NOT NULL DEFAULT 0,
+    status INTEGER NOT NULL DEFAULT 1,
+    username VARCHAR(50),
+    nickname VARCHAR(100),
+    avatar_url TEXT,
+    gender INTEGER,
+    birthday DATE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_ai_profile (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL UNIQUE,
+    ai_name VARCHAR(100) NOT NULL,
+    personality_tags TEXT,
+    interests TEXT,
+    system_prompt TEXT NOT NULL,
+    ai_affinity_score INTEGER DEFAULT 0,
+    active_level INTEGER DEFAULT 0,
+    avatar_url TEXT,
+    voice_id VARCHAR(128),
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS UserAlarmProfile (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL UNIQUE,
+    city VARCHAR(100),
+    cron_expression VARCHAR(128) NOT NULL,
+    schedule_file_path VARCHAR(1024),
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_briefing (
+    user_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    content TEXT NOT NULL,
+    generated_at_ms BIGINT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+);

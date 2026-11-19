@@ -2,29 +2,37 @@ package com.example.vr_gfriend.common.config;
 
 import com.example.vr_gfriend.Audio.CompanionAudioHandler;
 import com.example.vr_gfriend.common.Interceptor.AudioHandshakeInterceptor;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.vr_gfriend.websocket.WebSocketNotificationImpl;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
-/**
- * 注册 /audio 专属通道。
- */
 @Configuration
 @EnableWebSocket
 public class AudioWebSocketConfig implements WebSocketConfigurer {
+    private final CompanionAudioHandler audio;
+    private final WebSocketNotificationImpl notifications;
+    private final AudioHandshakeInterceptor authentication;
+    private final String[] allowedOrigins;
 
-    @Autowired
-    private CompanionAudioHandler companionAudioHandler;
-
-    @Autowired
-    private AudioHandshakeInterceptor audioHandshakeInterceptor;
+    public AudioWebSocketConfig(CompanionAudioHandler audio, WebSocketNotificationImpl notifications,
+                                AudioHandshakeInterceptor authentication,
+                                @Value("${ga.web.allowed-origins}") String[] allowedOrigins) {
+        this.audio = audio;
+        this.notifications = notifications;
+        this.authentication = authentication;
+        this.allowedOrigins = allowedOrigins;
+    }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(companionAudioHandler, "/audio")
-                .setAllowedOrigins("*")
-                .addInterceptors(audioHandshakeInterceptor);
+        registry.addHandler(audio, "/audio")
+                .setAllowedOrigins(allowedOrigins)
+                .addInterceptors(authentication);
+        registry.addHandler(notifications, "/ws/briefing")
+                .setAllowedOrigins(allowedOrigins)
+                .addInterceptors(authentication);
     }
 }

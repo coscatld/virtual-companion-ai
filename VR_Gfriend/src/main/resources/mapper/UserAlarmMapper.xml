@@ -17,4 +17,14 @@
         id, user_id, city, cron_expression, schedule_file_path, enabled, created_at, updated_at
     </sql>
 
+    <insert id="save">
+        INSERT INTO UserAlarmProfile (user_id, city, cron_expression, schedule_file_path, enabled)
+        VALUES (#{userId}, #{city}, #{cronExpression}, #{scheduleFilePath}, #{enabled})
+        ON DUPLICATE KEY UPDATE
+            city = VALUES(city),
+            cron_expression = VALUES(cron_expression),
+            schedule_file_path = COALESCE(VALUES(schedule_file_path), schedule_file_path),
+            enabled = VALUES(enabled)
+    </insert>
+
 </mapper>

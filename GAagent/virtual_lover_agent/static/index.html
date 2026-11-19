@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151728">
+  <title>GA · 个人终端</title>
+  <link rel="stylesheet" href="/static/personal.css">
+  <script type="module" src="/static/personal.js"></script>
+</head>
+<body>
+  <header>
+    <span class="brand">GA<span>个人终端</span></span>
+    <nav id="navigation" aria-label="终端操作" hidden>
+      <button id="edit-profile" type="button">伴侣设置</button>
+      <button id="logout" type="button">锁定</button>
+    </nav>
+  </header>
+
+  <main id="access" class="card">
+    <h1>连接个人终端</h1>
+    <p>从启动终端运行 <code>ga token</code>，然后输入访问令牌。</p>
+    <form id="login">
+      <label for="token">访问令牌</label>
+      <input id="token" type="password" autocomplete="off" required>
+      <button class="primary" type="submit">连接</button>
+      <p id="login-status" role="alert"></p>
+    </form>
+  </main>
+
+  <main id="room" class="room" hidden>
+    <aside class="presence">
+      <h1 id="companion-name"></h1>
+      <div class="signal" aria-hidden="true"><i></i></div>
+      <p id="state" role="status">等待消息</p>
+    </aside>
+    <section class="chat" aria-label="对话">
+      <div id="messages" class="timeline" aria-label="近期对话">
+        <p id="empty" class="empty">今天想聊些什么？</p>
+      </div>
+      <div class="composer">
+        <p id="chat-status" role="alert"></p>
+        <audio id="reply-audio" controls hidden aria-label="播放伴侣语音回复"></audio>
+        <form id="send-text">
+          <textarea id="draft" rows="2" maxlength="12000" aria-label="消息" placeholder="说说你的想法…"></textarea>
+          <div class="actions">
+            <div>
+              <button id="record" type="button">录音</button>
+              <button id="cancel" type="button" hidden>取消</button>
+            </div>
+            <button id="send" class="primary" type="submit">发送</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="settings">
+    <form id="profile">
+      <h2>伴侣设置</h2>
+      <label for="profile-name">名字</label>
+      <input id="profile-name" maxlength="80" required>
+      <label for="profile-prompt">希望如何相处</label>
+      <textarea id="profile-prompt" rows="6" maxlength="12000" required></textarea>
+      <label for="profile-voice">声音标识（可选）</label>
+      <input id="profile-voice" maxlength="120">
+      <p id="profile-status" role="alert"></p>
+      <div class="actions">
+        <button id="close-settings" type="button">关闭</button>
+        <button class="primary" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

@@ -24,7 +24,17 @@
             <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
             register_stage = 1
         </set>
-        WHERE user_id = #{userId}
+        WHERE user_id = #{userId} AND register_stage = 0
+    </update>
+
+    <update id="advanceToCompanionStage">
+        UPDATE user SET register_stage = 2
+        WHERE user_id = #{userId} AND register_stage = 1
+    </update>
+
+    <update id="upgradePassword">
+        UPDATE user SET password_hash = #{hashedPassword}
+        WHERE user_id = #{userId} AND password_hash = #{previousPassword}
     </update>
 
     <select id="selectByUserId" resultType="com.example.vr_gfriend.user.entity.User">

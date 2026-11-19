@@ -1,6 +1,8 @@
 package com.example.vr_gfriend.user.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
 @TableName("user_ai_profile")
 public class UserAIProfile {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String userId;
 

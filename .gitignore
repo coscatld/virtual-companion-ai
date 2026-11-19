@@ -19,8 +19,11 @@ target/
 # =========================
 __pycache__/
 *.py[cod]
+*.egg-info/
+GAagent/build/
 *$py.class
 venv/
+.venv*/
 .env
 
 # 忽略大模型文件目录

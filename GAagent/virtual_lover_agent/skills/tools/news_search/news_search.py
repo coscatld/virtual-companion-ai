@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -30,7 +31,7 @@ async def news_search(query: str) -> str:
 
     try:
         search = GoogleSearch(params)
-        results = search.get_dict()
+        results = await asyncio.to_thread(search.get_dict)
 
         # 提取新闻结果
         news_results = results.get("news_results", [])
@@ -57,5 +58,5 @@ async def news_search(query: str) -> str:
 
         return f"为您找到关于 '{query}' 的最新新闻：\n\n" + "\n".join(formatted_news)
 
-    except Exception as e:
-        return f"新闻查询工具发生错误: {str(e)}"
+    except Exception:
+        return "新闻查询工具暂时不可用。"

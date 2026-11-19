@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ga-personal-agent"
+version = "0.1.1"
+description = "A self-hosted personal AI companion with FastAPI and local dialogue memory."
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[project.scripts]
+ga = "virtual_lover_agent.personal.cli:main"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements-core.txt", "requirements-personal.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["virtual_lover_agent*"]
+exclude = [
+    "virtual_lover_agent.enterprise*",
+    "virtual_lover_agent.protos*",
+    "*.agent_memory_db*",
+    "*.skills.tools.read_local_file_box*",
+    "*.transport*",
+]
+
+[tool.setuptools.package-data]
+virtual_lover_agent = ["static/*.html", "static/*.css", "static/*.js"]

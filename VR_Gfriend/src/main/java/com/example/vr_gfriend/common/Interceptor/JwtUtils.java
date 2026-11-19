@@ -1,34 +1,60 @@
 package com.example.vr_gfriend.common.Interceptor;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 
 @Component
 public class JwtUtils {
-    private static final String SIGN_KEY = "YourSecretKeyForSigningTokensMakeItLongEnough"; // 密钥
-    private static final Long EXPIRE_TIME = 43200000L; // 有效期 12 小时
+    private static final String SUBJECT = "USER_INFO";
+    private final Key signingKey;
+    private final JwtParser parser;
 
-    // 生成 Token
+    public JwtUtils(@Value("${ga.auth.jwt-secret}") String secret) {
+        signingKey = secret.isBlank()
+                ? Keys.secretKeyFor(SignatureAlgorithm.HS256)
+                : Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        parser = Jwts.parserBuilder().setSigningKey(signingKey).requireSubject(SUBJECT).build();
+    }
+
     public String createToken(String userId) {
+        Instant now = Instant.now();
         return Jwts.builder()
-                .setSubject("USER_INFO")
-                .claim("userId", userId) // 把 userId 存入载荷
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRE_TIME))
-                .signWith(SignatureAlgorithm.HS256, SIGN_KEY)
+                .setSubject(SUBJECT)
+                .claim("userId", userId)
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(now.plus(Duration.ofHours(12))))
+                .signWith(signingKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // 解析 Token 获取 userId
     public String getUserIdFromToken(String token) {
-        Claims claims = Jwts.parser()
-                .setSigningKey(SIGN_KEY)
-                .parseClaimsJws(token)
-                .getBody();
-        return claims.get("userId", String.class);
+        Claims claims = parser.parseClaimsJws(token).getBody();
+        String userId = claims.get("userId", String.class);
+        if (userId == null || userId.isBlank() || claims.getExpiration() == null) {
+            throw new IllegalArgumentException("令牌缺少身份或有效期");
+        }
+        return userId;
+    }
+
+    public String getUserIdFromAuthorization(String authorization) {
+        if (authorization == null || authorization.isBlank()) {
+            throw new IllegalArgumentException("令牌不能为空");
+        }
+        String token = authorization.strip();
+        if (token.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+            token = token.substring("Bearer ".length()).strip();
+        }
+        return getUserIdFromToken(token);
     }
 }
-

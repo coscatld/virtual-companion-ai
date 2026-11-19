@@ -13,6 +13,5 @@
 export interface UserAlarmProfileDTO {
   city: string              // 城市名称，如 "Beijing"
   cronExpression: string    // "HH:mm" 格式字符串 或 完整 Cron 表达式
-  scheduleFilePath: string  // 授权/任务文件路径
   enabled: boolean          // 是否开启该闹钟
 }

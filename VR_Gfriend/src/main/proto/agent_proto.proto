@@ -10,6 +10,21 @@ service AgentService {
   // 核心：返回值使用了 stream 关键字
   // 表示：Java 发一个请求，Python 会源源不断地吐出数据流
   rpc chatStream (ChatRequest) returns (stream ChatResponse);
+  rpc GetRecentTurns (RecentTurnsRequest) returns (RecentTurnsResponse);
+}
+
+message RecentTurnsRequest {
+  string user_id = 1;
+  string companion_id = 2;
+}
+
+message RecentTurnsResponse {
+  repeated HistoryMessage messages = 1;
+}
+
+message HistoryMessage {
+  string role = 1;
+  string content = 2;
 }
 
 // 请求体 (Java -> Python)
@@ -17,6 +32,8 @@ message ChatRequest {
   string user_id = 1;       // 用户ID (用于记忆检索)
   string system_prompt = 2; // 当前人设 (如: "你是猫娘...")
   string user_message = 3;  // 用户说的话
+  string companion_id = 4;
+  bool skip_memory_write = 5;
 }
 
 // 响应体 (Python -> Java)
@@ -36,10 +53,16 @@ message AudioRequest {
   bytes audio_chunk = 1; // 纯二进制音频流
   string session_id = 2; // 用于隔离不同用户的并发记忆
   string user_id = 3;    // 用户ID (用于记忆检索与保存)
-  string system_prompt = 4; // 人设Prompt，由Java从DB/Redis获取后传入
+  string system_prompt = 4; // 人设 Prompt，由控制面解析后传入
+  string companion_id = 5;
+  string voice_id = 6;
 }
 
 message AudioResponse {
   bytes ai_audio_chunk = 1; // AI 合成好的语音流
   string ai_text = 2;       // 附带文本，可用于前端显示字幕
+  string audio_content_type = 3;
+  string user_text = 4;
+  bool is_end = 5;
+  string error = 6;
 }

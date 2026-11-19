@@ -6,6 +6,16 @@
  */
 import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResult } from './types/apiResult'
+import { apiBase } from './endpoints'
+
+export class HttpError extends Error {
+  readonly status?: number
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.status = status
+  }
+}
 
 // ────────────────────────────────
 // Toast 触发口
@@ -20,7 +30,7 @@ export function onApiError(message: string): void {
 // Axios 实例
 // ────────────────────────────────
 const http: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: apiBase,
   timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
 })
@@ -38,6 +48,9 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 http.interceptors.response.use(
   (response: AxiosResponse<ApiResult<unknown>>) => {
     const result = response.data
+    if (typeof result !== 'object' || result === null || !('code' in result)) {
+      return response.data as unknown as AxiosResponse<unknown>
+    }
     if (result.code !== 200) {
       onApiError(result.message)
       return Promise.reject(new Error(result.message))
@@ -46,12 +59,13 @@ http.interceptors.response.use(
     return result.data as unknown as AxiosResponse<unknown>
   },
   (error: unknown) => {
-    const msg =
-      error instanceof Error
-        ? error.message
-        : '网络异常，请检查连接后重试'
+    const msg = axios.isAxiosError(error) && error.response?.status === 401
+      ? '登录已过期，请重新登录。'
+      : axios.isAxiosError(error) && typeof error.response?.data?.message === 'string'
+        ? error.response.data.message
+        : error instanceof Error ? error.message : '网络异常，请检查连接后重试'
     onApiError(msg)
-    return Promise.reject(new Error(msg))
+    return Promise.reject(new HttpError(msg, axios.isAxiosError(error) ? error.response?.status : undefined))
   },
 )
 

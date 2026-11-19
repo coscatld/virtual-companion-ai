@@ -2,55 +2,56 @@ package com.example.vr_gfriend.Scheduler;
 
 import com.example.vr_gfriend.Scheduler.DTO.UserAlarmProfileDTO;
 import com.example.vr_gfriend.Scheduler.service.DailyBriefingService;
-import com.example.vr_gfriend.Scheduler.service.DynamicTaskService;
+import com.example.vr_gfriend.Scheduler.service.DailyBriefingService.Briefing;
 import com.example.vr_gfriend.Scheduler.service.UserAlarmService;
+import com.example.vr_gfriend.agent.InferenceQuota;
 import com.example.vr_gfriend.common.Interceptor.UserContext;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.vr_gfriend.common.config.Result;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/api/briefing")
+@RequiredArgsConstructor
 public class DailyBriefingController {
-    @Autowired
-    private DynamicTaskService dynamicTaskService;
-    @Autowired
-    private DailyBriefingService dailyBriefingService;
-    @Autowired
-    private UserAlarmService userAlarmService;
+    private final DailyBriefingService dailyBriefing;
+    private final UserAlarmService userAlarms;
+    private final InferenceQuota quota;
 
-    /**
-     * 前端提交设置表单
-     * JSON: { "userId": "u1", "city": "Beijing", "time": "08:30", "filePath": "/tmp/work.txt" }
-     */
-    @PostMapping("/set")
-    public String setAlarm(@RequestBody UserAlarmProfileDTO dto) {
+    @GetMapping("/settings")
+    public Result<UserAlarmProfileDTO> settings() {
+        return Result.success(userAlarms.findSettings(UserContext.getUserId()));
+    }
+
+    @GetMapping("/latest")
+    public Result<Briefing> latest() {
+        return Result.success(dailyBriefing.latest(UserContext.getUserId()));
+    }
+
+    @PostMapping(value = "/set", produces = MediaType.TEXT_PLAIN_VALUE)
+    public String setAlarm(@Valid @RequestBody UserAlarmProfileDTO dto) {
+        dto.setUserId(UserContext.getUserId());
+        userAlarms.saveAndSchedule(dto);
+        return dto.isEnabled() ? "每日早报已开启。" : "每日早报已关闭。";
+    }
+
+    @GetMapping(value = "/test", produces = MediaType.TEXT_PLAIN_VALUE)
+    public Flux<String> testBriefing() {
         String userId = UserContext.getUserId();
-        dto.setUserId(userId);
-        //将 "08:30" turn to Cron表达式("0 30 8 * * ?")
-        if (dto.getCronExpression() == null || !dto.getCronExpression().contains(" ")) {
-            dto.setCronExpression(convertToCron(dto.getCronExpression()));
-        }
-        userAlarmService.saveAndSchedule(dto);
-        return "设置成功！闹钟将在指定时间触发，并读取文件：" + dto.getScheduleFilePath();
-    }
-    /**
-     * 手动触发测试 (直接返回流数据)
-     */
-    @GetMapping("/test/{userId}")
-    public Flux<String> testBriefing(@PathVariable String userId) {
-        return dailyBriefingService.generateDailyBriefing(userId);
+        quota.claimText(userId);
+        return dailyBriefing.generateDailyBriefing(userId, userAlarms.findSettings(userId));
     }
 
-    // 简单的转换工具: "08:30" -> "0 30 8 * * ?"
-    private String convertToCron(String time) {
-        if (time == null || !time.contains(":")) {
-            // 默认 早上8点
-            return "0 0 8 * * ?";
+    @GetMapping(value = "/test/{userId}", produces = MediaType.TEXT_PLAIN_VALUE)
+    public Flux<String> testLegacyBriefing(@PathVariable String userId) {
+        if (!userId.equals(UserContext.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能预览当前账号的早报");
         }
-        String[] parts = time.split(":");
-        int hour = Integer.parseInt(parts[0]);
-        int minute = Integer.parseInt(parts[1]);
-        return String.format("0 %d %d * * ?", minute, hour);
+        return testBriefing();
     }
 }

@@ -1,135 +1,222 @@
 package com.example.vr_gfriend.Audio;
 
+import com.example.vr_gfriend.common.Interceptor.AudioHandshakeInterceptor;
 import com.example.vr_gfriend.common.proto.AgentProto;
-import com.example.vr_gfriend.common.proto.AudioServiceGrpc;
+import com.example.vr_gfriend.agent.AgentClientService;
+import com.example.vr_gfriend.agent.InferenceQuota;
+import com.example.vr_gfriend.user.service.CompanionProfileService;
+import com.example.vr_gfriend.user.service.CompanionProfileService.InternalCompanion;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.ByteString;
+import io.grpc.Context;
 import io.grpc.stub.StreamObserver;
-import org.springframework.web.socket.BinaryMessage;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.handler.BinaryWebSocketHandler;
-
-import java.nio.ByteBuffer;
-import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.devh.boot.grpc.client.inject.GrpcClient;
-import com.example.vr_gfriend.user.entity.UserAIProfile;
-import com.example.vr_gfriend.user.mapper.UserAIProfileMapper;
-import com.example.vr_gfriend.common.method.methods;
+import org.springframework.stereotype.Component;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.socket.*;
+import org.springframework.web.socket.handler.BinaryWebSocketHandler;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
-public class CompanionAudioHandler extends BinaryWebSocketHandler {
+@RequiredArgsConstructor
+public class CompanionAudioHandler extends BinaryWebSocketHandler implements SubProtocolCapable {
+    private static final String CONNECTION = CompanionAudioHandler.class.getName();
+    private static final int MAX_FRAME_BYTES = 256 * 1024;
+    private static final int MAX_TURN_BYTES = 8 * 1024 * 1024;
 
-    @GrpcClient("agentService")
-    private AudioServiceGrpc.AudioServiceStub asyncStub;//连接GAgent的客户端
+    private final AgentClientService agent;
+    private final CompanionProfileService profiles;
+    private final ObjectMapper json;
+    private final InferenceQuota quota;
 
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
-    @Autowired
-    private UserAIProfileMapper userAIProfileMapper;
-    @Autowired
-    private methods methods;
-
-    // 维护每个 WebSocket 会话对应的 gRPC 请求流
-    private final ConcurrentHashMap<String, StreamObserver<AgentProto.AudioRequest>> grpcStreams = new ConcurrentHashMap<>();
-
-    // 可以在此保留空构造由于自动注入
-    public CompanionAudioHandler() {
+    @Override
+    public List<String> getSubProtocols() {
+        return List.of(AudioHandshakeInterceptor.SUBPROTOCOL);
     }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
-        String userId = (String) session.getAttributes().get("userId");
-        if(userId == null) userId = "Anonymous";
-        
-        // Fetch System Prompt,调取用户的个性化配置
-        String PROFILE_CACHE_KEY = "vr:profile:";
-        UserAIProfile profile = (UserAIProfile) redisTemplate.opsForValue().get(PROFILE_CACHE_KEY + userId);
-        if (profile == null) {
-            profile = userAIProfileMapper.selectByUserId(userId);
-            if (profile != null) {
-                redisTemplate.opsForValue().set(PROFILE_CACHE_KEY + userId, profile, 3600, java.util.concurrent.TimeUnit.SECONDS);
-            }
-        }
-        String pureSystemPrompt = profile != null ? methods.buildSystemPrompt(profile).toString() : "You are a helpful AI assistant.";
-        
-        // 直接将提示信息保存到会话属性中，以便稍后进行数据块组装
-        session.getAttributes().put("systemPrompt", pureSystemPrompt);
-
-        log.info("Audio WebSocket Connection Established for User: {}", userId);
-        
-        // 1. 当 Vue3 连上 Java 时，Java 立即向 Python 发起一个 gRPC 流式请求
-        StreamObserver<AgentProto.AudioResponse> responseObserver = new StreamObserver<AgentProto.AudioResponse>() {
-            @Override
-            public void onNext(AgentProto.AudioResponse response) {
-                // Python 返回了 AI 的声音！将它推回给 Vue3
-                try {
-                    ByteBuffer buffer = ByteBuffer.wrap(response.getAiAudioChunk().toByteArray());
-                    session.sendMessage(new BinaryMessage(buffer));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            @Override
-            public void onError(Throwable t) {}
-            @Override
-            public void onCompleted() {}
-        };
-
-        // 创建发往 Python 的数据流，并保存起来
-        StreamObserver<AgentProto.AudioRequest> requestObserver = asyncStub.streamAudioChat(responseObserver);
-        grpcStreams.put(session.getId(), requestObserver);
-    }
-
-    @Override
-    protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
-        // 2. 核心透传逻辑：Vue3 发来了一段 500ms 的录音碎片
-        ByteBuffer byteBuffer = message.getPayload();
-        byte[] audioBytes = new byte[byteBuffer.remaining()];
-        byteBuffer.get(audioBytes);
-
-        if (audioBytes.length == 0) {
-            // 构造一个携带空字节的 request 发给 Python 即可，让 Python 去判断截断
-            AgentProto.AudioRequest eofRequest = AgentProto.AudioRequest.newBuilder()
-                    .setAudioChunk(com.google.protobuf.ByteString.EMPTY)
-                    .setSessionId(session.getId())
-                    .build();
-            StreamObserver<AgentProto.AudioRequest> requestObserver = grpcStreams.get(session.getId());
-            if (requestObserver != null) {
-                requestObserver.onNext(eofRequest); // 不要调用 onCompleted()!
-            }
+    public void afterConnectionEstablished(WebSocketSession session) throws IOException {
+        session.setBinaryMessageSizeLimit(MAX_FRAME_BYTES);
+        String userId = (String) session.getAttributes().get(AudioHandshakeInterceptor.USER_ID);
+        if (userId == null) {
+            session.close(CloseStatus.POLICY_VIOLATION);
             return;
         }
 
-        String userId = (String) session.getAttributes().get("userId");
-        if(userId == null) userId = "Anonymous";
-        
-        String systemPrompt = (String) session.getAttributes().get("systemPrompt");
-        if(systemPrompt == null) systemPrompt = "You are a helpful AI assistant.";
+        Connection connection = new Connection(session, profiles.internalCompanion(userId));
+        session.getAttributes().put(CONNECTION, connection);
+        connection.start();
+    }
 
-        // 打包成 gRPC 对象
-        AgentProto.AudioRequest request = AgentProto.AudioRequest.newBuilder()
-                .setAudioChunk(com.google.protobuf.ByteString.copyFrom(audioBytes))
-                .setSessionId(session.getId())
-                .setUserId(userId)
-                .setSystemPrompt(systemPrompt)
-                .build();
-
-        // 3. 直接通过之前建立好的通道，推给 Python 中台
-        StreamObserver<AgentProto.AudioRequest> requestObserver = grpcStreams.get(session.getId());
-        if (requestObserver != null) {
-            requestObserver.onNext(request);
+    @Override
+    protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws IOException {
+        Connection connection = (Connection) session.getAttributes().get(CONNECTION);
+        if (connection != null) {
+            connection.sendToAgent(message);
         }
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) {
-        // 4. 用户挂断，通知 Python 结束推理
-        StreamObserver<AgentProto.AudioRequest> requestObserver = grpcStreams.remove(session.getId());
-        if (requestObserver != null) {
-            requestObserver.onCompleted();
+    public void handleTransportError(WebSocketSession session, Throwable error) throws IOException {
+        release(session);
+        if (session.isOpen()) {
+            session.close(CloseStatus.SERVER_ERROR);
         }
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        release(session);
+    }
+
+    private static void release(WebSocketSession session) {
+        Connection connection = (Connection) session.getAttributes().remove(CONNECTION);
+        if (connection != null) {
+            connection.rpc.close();
+        }
+    }
+
+    private final class Connection implements StreamObserver<AgentProto.AudioResponse> {
+        private final WebSocketSession socket;
+        private final InternalCompanion companion;
+        private final Context.CancellableContext rpc = Context.current().withCancellation();
+        private StreamObserver<AgentProto.AudioRequest> requestStream;
+        private int turnSize;
+        private boolean responding;
+
+        private Connection(WebSocketSession socket, InternalCompanion companion) {
+            this.socket = new ConcurrentWebSocketSessionDecorator(socket, 10_000, MAX_TURN_BYTES + MAX_FRAME_BYTES);
+            this.companion = companion;
+        }
+
+        private void start() {
+            rpc.run(() -> requestStream = agent.streamAudio(this));
+        }
+
+        private synchronized void sendToAgent(BinaryMessage message) throws IOException {
+            if (rpc.isCancelled()) {
+                return;
+            }
+            if (responding) {
+                return;
+            }
+            int length = message.getPayloadLength();
+            if (length > MAX_FRAME_BYTES || turnSize + length > MAX_TURN_BYTES) {
+                sendEvent(Map.of("type", "error", "text", "录音超过大小限制。"));
+                socket.close(CloseStatus.TOO_BIG_TO_PROCESS);
+                return;
+            }
+            if (length == 0 && turnSize == 0) {
+                return;
+            }
+            if (length == 0) {
+                try {
+                    quota.claimVoice(companion.userId());
+                } catch (ResponseStatusException denied) {
+                    sendEvent(Map.of("type", "error", "text", denied.getReason()));
+                    close(denied.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS
+                            ? CloseStatus.POLICY_VIOLATION : CloseStatus.SERVICE_RESTARTED);
+                    return;
+                }
+            }
+            turnSize += length;
+            responding = length == 0;
+
+            var request = AgentProto.AudioRequest.newBuilder()
+                    .setAudioChunk(ByteString.copyFrom(message.getPayload().asReadOnlyBuffer()))
+                    .setSessionId(socket.getId())
+                    .setUserId(companion.userId())
+                    .setSystemPrompt(companion.systemPrompt())
+                    .setCompanionId(companion.companionId());
+            if (companion.voiceId() != null) {
+                request.setVoiceId(companion.voiceId());
+            }
+            requestStream.onNext(request.build());
+        }
+
+        @Override
+        public void onNext(AgentProto.AudioResponse response) {
+            try {
+                if (!response.getAiText().isEmpty() || !response.getUserText().isEmpty()) {
+                    sendEvent(Map.of("type", "transcript", "text", response.getAiText(),
+                            "userText", response.getUserText()));
+                }
+                if (!response.getAiAudioChunk().isEmpty()) {
+                    String contentType = response.getAudioContentType().isEmpty() ? "audio/wav" : response.getAudioContentType();
+                    sendEvent(Map.of("type", "audio", "contentType", contentType));
+                    socket.sendMessage(new BinaryMessage(response.getAiAudioChunk().asReadOnlyByteBuffer()));
+                }
+                if (!response.getError().isEmpty()) {
+                    sendEvent(Map.of("type", "error", "text", voiceErrorMessage(response.getError())));
+                }
+                if (response.getIsEnd()) {
+                    finishTurn();
+                }
+            } catch (IOException | RuntimeException error) {
+                close(CloseStatus.SERVER_ERROR);
+            }
+        }
+
+        private synchronized void finishTurn() throws IOException {
+            turnSize = 0;
+            responding = false;
+            sendEvent(Map.of("type", "done"));
+        }
+
+        @Override
+        public void onError(Throwable error) {
+            if (rpc.isCancelled()) {
+                return;
+            }
+            log.warn("Audio agent stream failed", error);
+            try {
+                sendEvent(Map.of("type", "error", "text", "语音服务暂时不可用，请稍后再试。"));
+            } catch (IOException | RuntimeException sendError) {
+                log.debug("Audio WebSocket closed before the error could be delivered", sendError);
+            } finally {
+                close(CloseStatus.SERVER_ERROR);
+            }
+        }
+
+        @Override
+        public void onCompleted() {
+            close(CloseStatus.NORMAL);
+        }
+
+        private void sendEvent(Map<String, String> event) throws IOException {
+            if (socket.isOpen()) {
+                socket.sendMessage(new TextMessage(json.writeValueAsString(event)));
+            }
+        }
+
+        private void close(CloseStatus status) {
+            rpc.close();
+            try {
+                if (socket.isOpen()) {
+                    socket.close(status);
+                }
+            } catch (IOException error) {
+                log.debug("Unable to close audio WebSocket", error);
+            }
+        }
+    }
+
+    private static String voiceErrorMessage(String code) {
+        return switch (code) {
+            case "audio_too_large" -> "录音超过大小限制。";
+            case "invalid_audio" -> "录音格式无效，请重新录制。";
+            case "voice_disabled" -> "语音服务尚未配置。";
+            case "speech_not_recognized" -> "没有识别到可转写的语音，请再试一次。";
+            case "recognition_unavailable" -> "语音识别暂时不可用。";
+            case "synthesis_unavailable", "audio_reply_too_large" -> "语音回复暂时无法播放。";
+            default -> "语音服务暂时不可用，请稍后再试。";
+        };
     }
 }

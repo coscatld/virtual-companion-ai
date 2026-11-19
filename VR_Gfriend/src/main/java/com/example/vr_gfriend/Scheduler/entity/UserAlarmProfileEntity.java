@@ -1,6 +1,8 @@
 package com.example.vr_gfriend.Scheduler.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -8,6 +10,7 @@ import java.time.LocalDateTime;
 @Data
 @TableName("UserAlarmProfile")
 public class UserAlarmProfileEntity {
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String userId;
     private String city;          // 用户填写的城市

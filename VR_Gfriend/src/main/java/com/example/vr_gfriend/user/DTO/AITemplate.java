@@ -1,6 +1,6 @@
 package com.example.vr_gfriend.user.DTO;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.List;
@@ -17,6 +17,6 @@ public class AITemplate {
     private String interests;     // "烹饪,记录生活"
 
     // 注意：initPrompt 可以传给前端，也可以选择不传（如果不希望用户看到底层的 Prompt）
-    @JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String initPrompt;
 }

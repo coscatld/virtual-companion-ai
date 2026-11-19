@@ -1,26 +1,32 @@
 package com.example.vr_gfriend.common.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.servlet.config.annotation.AsyncSupportConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * 异步请求线程池
- */
-@Configuration
-public class WebMvcConfig implements WebMvcConfigurer {
-
-    @Override
-    public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
+@Configuration(proxyBeanMethods = false)
+public class WebMvcConfig {
+    @Bean
+    public ThreadPoolTaskExecutor streamTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(50);
+        executor.setCorePoolSize(8);
+        executor.setMaxPoolSize(40);
         executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("VR-Async-");
-        executor.initialize();
+        executor.setThreadNamePrefix("ga-stream-");
+        return executor;
+    }
 
-        configurer.setTaskExecutor(executor);
-        configurer.setDefaultTimeout(30000L); // 30秒超时
+    @Bean
+    public WebMvcConfigurer asyncMvcConfigurer(AsyncTaskExecutor streamTaskExecutor) {
+        return new WebMvcConfigurer() {
+            @Override
+            public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
+                configurer.setTaskExecutor(streamTaskExecutor);
+                configurer.setDefaultTimeout(125_000L);
+            }
+        };
     }
 }

@@ -1,14 +1,23 @@
+from functools import lru_cache
+
 from rsocket.payload import Payload
 from rsocket.routing.request_router import RequestRouter
 from rsocket.routing.routing_request_handler import RoutingRequestHandler
 from rsocket.streams.stream_from_async_generator import StreamFromAsyncGenerator
 
-from virtual_lover_agent.agent.graph.gragh01 import agent_graph
+from virtual_lover_agent.agent.graph.gragh01 import create_agent
 from virtual_lover_agent.agent.prompts.prompt import construct_agent_inputs
+from virtual_lover_agent.app.config import Settings
 from virtual_lover_agent.protos import agent_proto_pb2
 from virtual_lover_agent.skills.memory import skill_retriever
 
 router = RequestRouter()
+
+
+@lru_cache(maxsize=1)
+def get_agent_graph():
+    settings = Settings.from_env()
+    return create_agent(settings.llm, public_tools=settings.public_tools)
 
 
 # ======================================================
@@ -32,7 +41,7 @@ async def response_stream_generator(msg:str,system_prompt:str):
     used_tools = set()  # 本轮用了哪些工具
     final_answer = ""  # 最终回答累计
 
-    async for event in agent_graph.astream_events(inputs, version="v1"):
+    async for event in get_agent_graph().astream_events(inputs, version="v1"):
         kind = event["event"]
 
         # --- 情况 1: LLM 正在生成回复 (打字机效果) ---

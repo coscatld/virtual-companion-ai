@@ -1,26 +1,10 @@
 @echo off
-echo.
-echo ========================================================
-echo   启动带有前缀缓存 (Prefix Caching) 的 vLLM 服务
-echo ========================================================
-echo.
-echo 注意：vLLM 官方推荐在 WSL2 (Linux 子系统) 中运行。
-echo 请确保您所在的环境已安装 vLLM，并且显存足够。
-echo.
+setlocal
 
-set MODEL_PATH="qwen/Qwen2.5-7B-Instruct"
-set PORT=8000
-set GPU_MEMORY_UTIL=0.9
+rem Set GA_VLLM_EXECUTABLE to an absolute WSL path if vLLM lives in a virtual environment.
+if not defined GA_VLLM_EXECUTABLE set "GA_VLLM_EXECUTABLE=vllm"
+if not defined GA_LLM_MODEL set "GA_LLM_MODEL=Qwen/Qwen2.5-7B-Instruct"
+if not defined GA_VLLM_PORT set "GA_VLLM_PORT=8000"
 
-echo 正在启动 vLLM Engine...
-echo 使用模型: %MODEL_PATH%
-echo 启用特性: --enable-prefix-caching (极致加速长人设对话)
-
-python -m vllm.entrypoints.openai.api_server ^
-    --model %MODEL_PATH% ^
-    --port %PORT% ^
-    --gpu-memory-utilization %GPU_MEMORY_UTIL% ^
-    --enable-prefix-caching ^
-    --max-model-len 8192
-
-pause
+wsl.exe --exec "%GA_VLLM_EXECUTABLE%" serve "%GA_LLM_MODEL%" --host 127.0.0.1 --port "%GA_VLLM_PORT%" --enable-prefix-caching
+exit /b %errorlevel%

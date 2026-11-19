@@ -1,92 +1,69 @@
 package com.example.vr_gfriend.Scheduler.service;
 
 import com.example.vr_gfriend.Scheduler.DTO.UserAlarmProfileDTO;
-import com.example.vr_gfriend.common.Interceptor.UserContext;
-import com.example.vr_gfriend.common.method.methods;
 import com.example.vr_gfriend.common.proto.AgentProto;
-import com.example.vr_gfriend.rsocket.AgentClientService;
-import com.example.vr_gfriend.user.entity.UserAIProfile;
-import com.example.vr_gfriend.user.mapper.UserAIProfileMapper;
+import com.example.vr_gfriend.agent.AgentClientService;
 import com.example.vr_gfriend.websocket.NotificationService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import lombok.extern.slf4j.Slf4j;
+import reactor.core.scheduler.Schedulers;
 
-/**
- * 负责查人设、拼 Prompt、调 RSocket、推 WebSocket。
- */
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DailyBriefingService {
-    @Autowired
-    private AgentClientService client;
-    @Autowired
-    private UserAIProfileMapper userAIProfileMapper;
-    @Autowired
-    private methods methods;
-    @Autowired
-    private NotificationService notificationService;
+    private final AgentClientService client;
+    private final NotificationService notifications;
+    private final JdbcTemplate jdbc;
+    private final Set<String> inProgress = ConcurrentHashMap.newKeySet();
 
-    /**
-     * 测试接口
-     * @param userId
-     * @return
-     */
-    public Flux<String> generateDailyBriefing(String userId) {
-        // 1. 获取用户 AI 配置
-        UserAIProfile profile = userAIProfileMapper.selectByUserId(userId);
-        if (profile == null) {
-            return Flux.error(new RuntimeException("未找到用户配置"));
-        }
-
-        // 2. 构建 Prompt
-        String systemPrompt = methods.buildSystemPrompt(profile).toString();
-
-        // 3. 构建简单的触发消息
-        String triggerMessage = String.format("我是%s。请给我一份今天的早报。", userId);
-        AgentProto.ChatRequest request = methods.callAgent(userId, systemPrompt, triggerMessage);
-
-        // 2. 在这里执行真正的 RSocket 请求
-        return client.streamChat(String.valueOf(request))
-                .map(AgentProto.ChatResponse::getDelta);
-    }
-
-    /**
-     * 设定闹钟
-     * @param dto
-     */
-    public void triggerCustomBriefing(UserAlarmProfileDTO dto) {
-        String userId = UserContext.getUserId();
-
-        //prompt：促使Agent使用工具
-        String triggerMessage = String.format(
-                "我是%s。现在是早报时间！\n" +
-                        "1. 我现在的城市是：%s，请查一下天气和新闻。\n" +
-                        "2. 我的工作安排在文件：%s 中，请使用【read_local_file】工具读取它，并总结我今天的待办事项。\n" +
-                        "3. 综合以上信息，给我一份元气满满的早报！",
-                userId,
-                dto.getCity(),
-                dto.getScheduleFilePath() // <--- 注入文件路径
-        );
-        //拼接画像
-        UserAIProfile profile =userAIProfileMapper.selectByUserId(userId);
-        methods.buildSystemPrompt(profile);
-        // 获取人设
-        String systemPrompt = methods.buildSystemPrompt(profile).toString();
-
-        // 发送请求给 Python
-        AgentProto.ChatRequest request = methods.callAgent(userId,systemPrompt,triggerMessage);
-
-        client.streamChat(String.valueOf(request))
+    public Flux<String> generateDailyBriefing(String userId, UserAlarmProfileDTO settings) {
+        String city = settings == null ? null : settings.getCity();
+        String cityContext = city == null || city.isBlank() ? "" : "用户所在城市：" + city + "。";
+        String task = "请生成一份简洁的每日早报。" + cityContext
+                + "结合可核实的天气和时事，给出今天可执行的建议。请清楚标注无法核实的实时信息。";
+        return client.streamChat(userId, task, true)
+                .timeout(Duration.ofSeconds(60))
                 .map(AgentProto.ChatResponse::getDelta)
-                .reduce(new StringBuilder(), StringBuilder::append)
-                .subscribe(
-                        fullContent -> {
-                            log.info("✅ 早报生成完毕，准备推送:\n{}", fullContent);
-                            notificationService.push(userId, fullContent.toString());
-                        },
-                        error -> log.error("❌ 早报生成失败", error)
-                );
+                .filter(text -> !text.isEmpty());
     }
+
+    public Briefing latest(String userId) {
+        return jdbc.query("SELECT content, generated_at_ms FROM user_briefing WHERE user_id = ?",
+                (row, index) -> new Briefing(row.getString("content"),
+                        Instant.ofEpochMilli(row.getLong("generated_at_ms"))), userId)
+                .stream().findFirst().orElse(null);
+    }
+
+    public void triggerCustomBriefing(UserAlarmProfileDTO settings) {
+        String userId = settings.getUserId();
+        if (!inProgress.add(userId)) {
+            return;
+        }
+        generateDailyBriefing(userId, settings)
+                .reduceWith(StringBuilder::new, StringBuilder::append)
+                .filter(content -> !content.isEmpty())
+                .publishOn(Schedulers.boundedElastic())
+                .doOnNext(content -> {
+                    String text = content.toString();
+                    long generatedAt = Instant.now().toEpochMilli();
+                    jdbc.update("""
+                            INSERT INTO user_briefing (user_id, content, generated_at_ms) VALUES (?, ?, ?)
+                            ON DUPLICATE KEY UPDATE content = VALUES(content), generated_at_ms = VALUES(generated_at_ms)
+                            """, userId, text, generatedAt);
+                    notifications.push(userId, text, Instant.ofEpochMilli(generatedAt));
+                })
+                .doFinally(signal -> inProgress.remove(userId))
+                .subscribe(content -> {}, error -> log.warn("Scheduled briefing generation failed", error));
+    }
+
+    public record Briefing(String text, Instant generatedAt) {}
 }

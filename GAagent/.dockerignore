@@ -1,0 +1,10 @@
+.env
+.env.*
+.venv*
+**/__pycache__/
+**/*.py[cod]
+**/agent_memory_db/
+tests/
+build/
+dist/
+*.egg-info/

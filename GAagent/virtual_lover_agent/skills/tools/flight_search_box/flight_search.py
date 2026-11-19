@@ -1,3 +1,5 @@
+import asyncio
+
 from langchain_core.tools import tool
 from serpapi import GoogleSearch  # 修改点：直接使用 serpapi 库，而不是 LangChain 的 Wrapper
 import os
@@ -32,11 +34,11 @@ async def flight_search(departure: str, arrival: str, date: str) -> str:
     try:
         # 修改点：正确调用 GoogleSearch 获取字典数据
         search = GoogleSearch(params)
-        results = search.get_dict()
+        results = await asyncio.to_thread(search.get_dict)
 
         # 检查是否出错
         if "error" in results:
-            return f"API报错: {results['error']}"
+            return "机票查询工具暂时不可用。"
 
         # 解析最佳航班
         if "best_flights" in results and results['best_flights']:
@@ -53,8 +55,8 @@ async def flight_search(departure: str, arrival: str, date: str) -> str:
         else:
             return "抱歉，暂时没查到当天的航班信息，可能是由于直飞限制或日期太远。"
 
-    except Exception as e:
-        return f"查询过程中发生错误: {str(e)}"
+    except Exception:
+        return "机票查询工具暂时不可用。"
 
 
 if __name__ == "__main__":

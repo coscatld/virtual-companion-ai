@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: aigf
+      MYSQL_USER: ga
+      MYSQL_PASSWORD: ${GA_MYSQL_PASSWORD:?Set GA_MYSQL_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - ga-mysql:/var/lib/mysql
+  redis:
+    image: redis:7.2-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:16379:6379"
+    volumes:
+      - ga-redis:/data
+
+volumes:
+  ga-mysql:
+  ga-redis:

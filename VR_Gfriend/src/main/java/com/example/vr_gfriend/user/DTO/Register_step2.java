@@ -11,16 +11,15 @@ import java.time.LocalDate;
 
 @Data
 public class Register_step2 {
-    @NotBlank(message = "业务ID不能为空")
-    private String userId; // 必须传 ID，否则不知道更新谁
     @NotBlank(message = "用户名不能为空")
     @Size(max = 50, message = "用户名太长啦，建议50字以内")
     private String username;
 
     @NotBlank(message = "起个好听的昵称，能让称呼更亲昵哦")
+    @Size(max = 100)
     private String nickname;
 
-    @NotBlank(message = "让我看看您帅气的面容（请上传头像）")
+    @Size(max = 2048)
     private String avatarUrl;
 
     @NotNull(message = "请选择您的性别")

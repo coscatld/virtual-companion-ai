@@ -23,8 +23,12 @@ public class Result<T> {
 
     // 失败时的静态调用方法
     public static <T> Result<T> error(String message) {
+        return error(500, message);
+    }
+
+    public static <T> Result<T> error(int code, String message) {
         Result<T> result = new Result<>();
-        result.setCode(500);
+        result.setCode(code);
         result.setMessage(message);
         return result;
     }

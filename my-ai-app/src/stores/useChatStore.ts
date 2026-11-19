@@ -67,7 +67,6 @@ export const useChatStore = defineStore('chat', () => {
    */
   function resetChat(): void {
     messages.value = []
-    _idCounter = 0
   }
 
   return {

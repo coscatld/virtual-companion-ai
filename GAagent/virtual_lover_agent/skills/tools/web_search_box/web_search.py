@@ -1,3 +1,5 @@
+import asyncio
+
 from langchain_core.tools import tool
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 
@@ -20,17 +22,15 @@ async def web_search(query: str) -> str:
     输入 query 应为简洁的搜索关键词，例如 "杭州周末天气" 或 "最新上映的科幻电影"。
     """
     try:
-        # 虽然 DDG 库底层是同步的，但在 Agent 少量并发下直接调用完全没问题
-        # run 方法返回的是一段包含标题、链接和摘要的文本
-        results = ddg_wrapper.run(query)
+        results = await asyncio.to_thread(ddg_wrapper.run, query)
 
         if not results:
             return "抱歉，搜索引擎没有返回有效结果，请尝试通过提问获取更多上下文。"
 
         return results
 
-    except Exception as e:
-        return f"搜索工具暂时不可用，错误详情: {e}"
+    except Exception:
+        return "搜索工具暂时不可用。"
 
 if __name__ == "__main__":
     import asyncio

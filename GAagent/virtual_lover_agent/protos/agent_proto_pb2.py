@@ -24,24 +24,30 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x61gent_proto.proto\x12\x05\x61gent\"K\n\x0b\x43hatRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x15\n\rsystem_prompt\x18\x02 \x01(\t\x12\x14\n\x0cuser_message\x18\x03 \x01(\t\">\n\x0c\x43hatResponse\x12\r\n\x05\x64\x65lta\x18\x01 \x01(\t\x12\x0f\n\x07\x65motion\x18\x02 \x01(\t\x12\x0e\n\x06is_end\x18\x03 \x01(\x08\"_\n\x0c\x41udioRequest\x12\x13\n\x0b\x61udio_chunk\x18\x01 \x01(\x0c\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12\x0f\n\x07user_id\x18\x03 \x01(\t\x12\x15\n\rsystem_prompt\x18\x04 \x01(\t\"8\n\rAudioResponse\x12\x16\n\x0e\x61i_audio_chunk\x18\x01 \x01(\x0c\x12\x0f\n\x07\x61i_text\x18\x02 \x01(\t2G\n\x0c\x41gentService\x12\x37\n\nchatStream\x12\x12.agent.ChatRequest\x1a\x13.agent.ChatResponse0\x01\x32P\n\x0c\x41udioService\x12@\n\x0fStreamAudioChat\x12\x13.agent.AudioRequest\x1a\x14.agent.AudioResponse(\x01\x30\x01\x42!\n\x13\x63om.xxx.agent.protoB\nAgentProtob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11\x61gent_proto.proto\x12\x05\x61gent\";\n\x12RecentTurnsRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x14\n\x0c\x63ompanion_id\x18\x02 \x01(\t\">\n\x13RecentTurnsResponse\x12\'\n\x08messages\x18\x01 \x03(\x0b\x32\x15.agent.HistoryMessage\"/\n\x0eHistoryMessage\x12\x0c\n\x04role\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"|\n\x0b\x43hatRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x15\n\rsystem_prompt\x18\x02 \x01(\t\x12\x14\n\x0cuser_message\x18\x03 \x01(\t\x12\x14\n\x0c\x63ompanion_id\x18\x04 \x01(\t\x12\x19\n\x11skip_memory_write\x18\x05 \x01(\x08\">\n\x0c\x43hatResponse\x12\r\n\x05\x64\x65lta\x18\x01 \x01(\t\x12\x0f\n\x07\x65motion\x18\x02 \x01(\t\x12\x0e\n\x06is_end\x18\x03 \x01(\x08\"\x87\x01\n\x0c\x41udioRequest\x12\x13\n\x0b\x61udio_chunk\x18\x01 \x01(\x0c\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12\x0f\n\x07user_id\x18\x03 \x01(\t\x12\x15\n\rsystem_prompt\x18\x04 \x01(\t\x12\x14\n\x0c\x63ompanion_id\x18\x05 \x01(\t\x12\x10\n\x08voice_id\x18\x06 \x01(\t\"\x86\x01\n\rAudioResponse\x12\x16\n\x0e\x61i_audio_chunk\x18\x01 \x01(\x0c\x12\x0f\n\x07\x61i_text\x18\x02 \x01(\t\x12\x1a\n\x12\x61udio_content_type\x18\x03 \x01(\t\x12\x11\n\tuser_text\x18\x04 \x01(\t\x12\x0e\n\x06is_end\x18\x05 \x01(\x08\x12\r\n\x05\x65rror\x18\x06 \x01(\t2\x90\x01\n\x0c\x41gentService\x12\x37\n\nchatStream\x12\x12.agent.ChatRequest\x1a\x13.agent.ChatResponse0\x01\x12G\n\x0eGetRecentTurns\x12\x19.agent.RecentTurnsRequest\x1a\x1a.agent.RecentTurnsResponse2P\n\x0c\x41udioService\x12@\n\x0fStreamAudioChat\x12\x13.agent.AudioRequest\x1a\x14.agent.AudioResponse(\x01\x30\x01\x42\x31\n#com.example.vr_gfriend.common.protoB\nAgentProtob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'agent_proto_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'\n\023com.xxx.agent.protoB\nAgentProto'
-  _globals['_CHATREQUEST']._serialized_start=28
-  _globals['_CHATREQUEST']._serialized_end=103
-  _globals['_CHATRESPONSE']._serialized_start=105
-  _globals['_CHATRESPONSE']._serialized_end=167
-  _globals['_AUDIOREQUEST']._serialized_start=169
-  _globals['_AUDIOREQUEST']._serialized_end=264
-  _globals['_AUDIORESPONSE']._serialized_start=266
-  _globals['_AUDIORESPONSE']._serialized_end=322
-  _globals['_AGENTSERVICE']._serialized_start=324
-  _globals['_AGENTSERVICE']._serialized_end=395
-  _globals['_AUDIOSERVICE']._serialized_start=397
-  _globals['_AUDIOSERVICE']._serialized_end=477
+  _globals['DESCRIPTOR']._serialized_options = b'\n#com.example.vr_gfriend.common.protoB\nAgentProto'
+  _globals['_RECENTTURNSREQUEST']._serialized_start=28
+  _globals['_RECENTTURNSREQUEST']._serialized_end=87
+  _globals['_RECENTTURNSRESPONSE']._serialized_start=89
+  _globals['_RECENTTURNSRESPONSE']._serialized_end=151
+  _globals['_HISTORYMESSAGE']._serialized_start=153
+  _globals['_HISTORYMESSAGE']._serialized_end=200
+  _globals['_CHATREQUEST']._serialized_start=202
+  _globals['_CHATREQUEST']._serialized_end=326
+  _globals['_CHATRESPONSE']._serialized_start=328
+  _globals['_CHATRESPONSE']._serialized_end=390
+  _globals['_AUDIOREQUEST']._serialized_start=393
+  _globals['_AUDIOREQUEST']._serialized_end=528
+  _globals['_AUDIORESPONSE']._serialized_start=531
+  _globals['_AUDIORESPONSE']._serialized_end=665
+  _globals['_AGENTSERVICE']._serialized_start=668
+  _globals['_AGENTSERVICE']._serialized_end=812
+  _globals['_AUDIOSERVICE']._serialized_start=814
+  _globals['_AUDIOSERVICE']._serialized_end=894
 # @@protoc_insertion_point(module_scope)

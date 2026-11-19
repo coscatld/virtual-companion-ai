@@ -1,6 +1,7 @@
 package com.example.vr_gfriend.user.DTO;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -9,11 +10,15 @@ import java.util.List;
 @Data
 public class CustomCreateDTO {
     @NotBlank(message = "AI昵称不能为空")
+    @Size(max = 100)
     private String aiName;
 
-    private List<String> personalityTags; // 前端传数组 ["高冷", "毒舌"]
-    private List<String> interests;       // ["编程", "游戏"]
+    @Size(max = 30)
+    private List<@NotBlank @Size(max = 80) String> personalityTags;
+    @Size(max = 30)
+    private List<@NotBlank @Size(max = 80) String> interests;
 
     // 用户可以直接写一段描述，或者由后端根据标签生成
+    @Size(max = 4000)
     private String description;
 }
